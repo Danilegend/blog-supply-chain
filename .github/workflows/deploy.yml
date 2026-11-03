@@ -33,3 +33,7 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Install, build, and upload
+        uses: withastro/action@v3
+        with:
+          node-version: 22
