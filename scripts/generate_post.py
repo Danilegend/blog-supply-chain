@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 2, Bite 2: Gemini-powered post generator (local only).
-
-Two-stage generation:
-  1. Strategist: topic -> outline
-  2. Writer: outline -> {title, description, body, linkedin_summary}
-
-Writes a Markdown file into src/content/posts/.
-Reads GEMINI_API_KEY from the environment. Never hardcode the key.
+Phase 2, Bite 3 (revised): Gemini post generator with retry + model fallback.
 """
 
 import argparse
@@ -15,18 +8,25 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import date
 from pathlib import Path
-import time
-from google.genai import errors
 
 from google import genai
+from google.genai import types, errors
 
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 POSTS_DIR = ROOT / "src" / "content" / "posts"
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")  # free-tier eligible; switch to gemini-3.5-flash-lite if unavailable
+# Model fallback chain: try each in order until one succeeds.
+# Primary from env (default gemini-3.5-flash-lite), then stable fallbacks.
+MODEL_CHAIN = [
+    os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+    "gemini-3.6-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.0-flash",
+]
 
 
 def slugify(title: str) -> str:
@@ -35,22 +35,34 @@ def slugify(title: str) -> str:
     return slug
 
 
-
-def call_gemini(client, system_prompt, user_input, max_retries=3):
-    for attempt in range(max_retries):
+def call_gemini(client: genai.Client, system_prompt: str, user_input: str) -> str:
+    """
+    Try each model in the chain. The SDK's HttpRetryOptions handles
+    exponential-backoff retries on 503/5xx before we move to the next model.
+    """
+    last_error = None
+    for model in MODEL_CHAIN:
         try:
             response = client.models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=f"{system_prompt}\n\n---\n\n{user_input}",
             )
+            print(f"  ✓ {model} succeeded")
             return response.text
         except errors.ServerError as e:
-            if attempt < max_retries - 1:
-                wait = 2 ** attempt * 5  # 5s, 10s, 20s
-                print(f"  Server busy (503), retrying in {wait}s...")
-                time.sleep(wait)
-            else:
-                raise SystemExit(f"Gemini API unavailable after {max_retries} retries: {e}")
+            # 503 after all SDK retries exhausted — try next model
+            print(f"  ✗ {model} unavailable after retries: {e}")
+            last_error = e
+            # small pause before trying next model
+            time.sleep(3)
+        except errors.APIError as e:
+            # Non-retryable (e.g. 400, 403, 404) — fail fast, don't rotate models
+            raise SystemExit(f"Gemini API error on {model}: {e}")
+
+    raise SystemExit(
+        f"All models in chain exhausted. Last error: {last_error}\n"
+        f"Chain: {MODEL_CHAIN}"
+    )
 
 
 def run_strategist(client: genai.Client, topic: str) -> str:
@@ -64,7 +76,6 @@ def run_writer(client: genai.Client, outline: str) -> dict:
     prompt = (PROMPTS / "writer.txt").read_text(encoding="utf-8")
     raw = call_gemini(client, prompt, f"Outline:\n\n{outline}")
 
-    # Strip accidental markdown fences if the model wrapped the JSON
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-z]*\n?", "", cleaned)
@@ -87,9 +98,10 @@ def run_writer(client: genai.Client, outline: str) -> dict:
 
 def render_frontmatter(data: dict) -> str:
     today = date.today().isoformat()
-    # Escape double quotes inside values so YAML stays valid
+
     def q(s: str) -> str:
         return s.replace('"', '\\"')
+
     return (
         "---\n"
         f'title: "{q(data["title"])}"\n'
@@ -126,11 +138,23 @@ def main() -> None:
     if not api_key:
         raise SystemExit(
             "GEMINI_API_KEY is not set.\n"
-            "Run: export GEMINI_API_KEY=\"your-key-here\"\n"
-            "Do NOT paste the key into any file in this repo."
+            'Run: export GEMINI_API_KEY="your-key-here"'
         )
 
-    client = genai.Client(api_key=api_key)
+    # Configure SDK-level retry with more patience for CI environments
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(
+                attempts=7,
+                initial_delay=5.0,
+                max_delay=120.0,
+                exp_base=2.0,
+                jitter=2.0,
+                http_status_codes=[408, 429, 500, 502, 503, 504],
+            )
+        ),
+    )
 
     outline = run_strategist(client, args.topic)
     data = run_writer(client, outline)
