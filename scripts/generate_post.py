@@ -1,93 +1,144 @@
 #!/usr/bin/env python3
 """
-Phase 2, Bite 1: Standalone post generator (canned draft, no API).
+Phase 2, Bite 2: Gemini-powered post generator (local only).
 
-Writes a Markdown file into src/content/posts/ with proper frontmatter.
-No network, no API key, no Gemini. Proves the write -> build loop.
+Two-stage generation:
+  1. Strategist: topic -> outline
+  2. Writer: outline -> {title, description, body, linkedin_summary}
+
+Writes a Markdown file into src/content/posts/.
+Reads GEMINI_API_KEY from the environment. Never hardcode the key.
 """
 
+import argparse
+import json
+import os
 import re
+import sys
 from datetime import date
 from pathlib import Path
+import time
+from google.genai import errors
 
-# ---------------------------------------------------------------------------
-# Canned draft (will be replaced by Gemini output in the next bite)
-# ---------------------------------------------------------------------------
-DRAFT = {
-    "title": "Why Content Supply Chains Beat Content Calendars",
-    "description": "A calendar tells you when to publish. A supply chain tells you what to publish, why, and how it connects to revenue.",
-    "linkedin_summary": "Most teams treat content like a calendar problem. The ones that win treat it like a supply chain — inputs, transformations, quality gates, distribution. Here's the difference and why it compounds.",
-    "body": """## The calendar trap
+from google import genai
 
-A content calendar answers one question: *when do we publish?* It says nothing about whether the post will rank, convert, or connect to anything you sell.
+ROOT = Path(__file__).resolve().parent.parent
+PROMPTS = Path(__file__).resolve().parent / "prompts"
+POSTS_DIR = ROOT / "src" / "content" / "posts"
 
-## The supply chain view
-
-A content supply chain has four stages:
-
-1. **Inputs** — topic research, keyword gaps, product hooks
-2. **Transformation** — drafting, editing, SEO passes
-3. **Quality gates** — human approval before anything ships
-4. **Distribution** — blog, then social, then email
-
-Each stage has a pass/fail condition. Nothing moves forward on vibes.
-
-## Why it compounds
-
-When every post feeds the next one — internal links, canonical topics, a consistent affiliate stack — the output is greater than the sum of the parts. A calendar just produces posts. A supply chain produces an asset.
-
-Try [AFFILIATE_LINK] if you want the full framework.
-""",
-}
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")  # free-tier eligible; switch to gemini-3.5-flash-lite if unavailable
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def slugify(title: str) -> str:
     slug = title.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    slug = slug.strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
     return slug
 
 
-def render_frontmatter(draft: dict) -> str:
-    # YAML frontmatter. Values are quoted to be safe with special chars.
+
+def call_gemini(client, system_prompt, user_input, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=f"{system_prompt}\n\n---\n\n{user_input}",
+            )
+            return response.text
+        except errors.ServerError as e:
+            if attempt < max_retries - 1:
+                wait = 2 ** attempt * 5  # 5s, 10s, 20s
+                print(f"  Server busy (503), retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                raise SystemExit(f"Gemini API unavailable after {max_retries} retries: {e}")
+
+
+def run_strategist(client: genai.Client, topic: str) -> str:
+    prompt = (PROMPTS / "strategist.txt").read_text(encoding="utf-8")
+    outline = call_gemini(client, prompt, f"Topic: {topic}")
+    print(f"✓ Strategist produced outline ({len(outline)} chars)")
+    return outline
+
+
+def run_writer(client: genai.Client, outline: str) -> dict:
+    prompt = (PROMPTS / "writer.txt").read_text(encoding="utf-8")
+    raw = call_gemini(client, prompt, f"Outline:\n\n{outline}")
+
+    # Strip accidental markdown fences if the model wrapped the JSON
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-z]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        print("Writer returned invalid JSON. Raw output:\n", file=sys.stderr)
+        print(raw, file=sys.stderr)
+        raise SystemExit(f"JSON parse failed: {e}")
+
+    for key in ("title", "description", "body", "linkedin_summary"):
+        if key not in data or not isinstance(data[key], str) or not data[key].strip():
+            raise SystemExit(f"Writer JSON missing or empty key: {key}")
+
+    print(f"✓ Writer produced: {data['title']}")
+    return data
+
+
+def render_frontmatter(data: dict) -> str:
     today = date.today().isoformat()
+    # Escape double quotes inside values so YAML stays valid
+    def q(s: str) -> str:
+        return s.replace('"', '\\"')
     return (
         "---\n"
-        f'title: "{draft["title"]}"\n'
-        f'description: "{draft["description"]}"\n'
+        f'title: "{q(data["title"])}"\n'
+        f'description: "{q(data["description"])}"\n'
         f"pubDate: {today}\n"
-        f'linkedinSummary: "{draft["linkedin_summary"]}"\n'
+        f'linkedinSummary: "{q(data["linkedin_summary"])}"\n'
         "affiliateDisclosure: true\n"
         "draft: false\n"
         "---\n\n"
     )
 
 
-def write_post(draft: dict) -> Path:
-    slug = slugify(draft["title"])
-    out_dir = Path(__file__).resolve().parent.parent / "src" / "content" / "posts"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{slug}.md"
+def write_post(data: dict) -> Path:
+    POSTS_DIR.mkdir(parents=True, exist_ok=True)
+    slug = slugify(data["title"])
+    out_path = POSTS_DIR / f"{slug}.md"
 
     if out_path.exists():
         raise SystemExit(
             f"Refusing to overwrite existing post: {out_path}\n"
-            "Delete it first or change the title."
+            "Change the title or delete the existing file."
         )
 
-    content = render_frontmatter(draft) + draft["body"]
-    out_path.write_text(content, encoding="utf-8")
+    out_path.write_text(render_frontmatter(data) + data["body"], encoding="utf-8")
     return out_path
 
 
 def main() -> None:
-    path = write_post(DRAFT)
-    print(f"✓ Wrote post: {path}")
+    parser = argparse.ArgumentParser(description="Generate a blog post with Gemini.")
+    parser.add_argument("--topic", required=True, help="Topic for the post")
+    args = parser.parse_args()
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise SystemExit(
+            "GEMINI_API_KEY is not set.\n"
+            "Run: export GEMINI_API_KEY=\"your-key-here\"\n"
+            "Do NOT paste the key into any file in this repo."
+        )
+
+    client = genai.Client(api_key=api_key)
+
+    outline = run_strategist(client, args.topic)
+    data = run_writer(client, outline)
+    path = write_post(data)
+
+    print(f"\n✓ Wrote: {path}")
     print(f"  Slug: {path.stem}")
-    print(f"  Next: run `npm run build` and check dist/blog/")
+    print("  Next: npm run build")
 
 
 if __name__ == "__main__":
