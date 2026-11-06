@@ -98,3 +98,51 @@ hr {
 
 time { color: var(--color-muted); font-size: 0.875em; }
 img { max-width: 100%; height: auto; }
+
+/* Header */
+.site-header {
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 1.25rem;
+}
+.site-header-inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.site-title {
+  font-weight: 700;
+  color: var(--color-fg);
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+.site-title:hover { text-decoration: none; }
+.site-header nav {
+  display: flex;
+  gap: 1rem;
+}
+.site-header nav a {
+  color: var(--color-muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.site-header nav a:hover,
+.site-header nav a.active {
+  color: var(--color-fg);
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--color-border);
+  padding: 2rem 1.25rem;
+  margin-top: 3rem;
+}
+.site-footer-inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  font-size: 0.875em;
+  color: var(--color-muted);
+}
+.site-footer p { margin: 0.25em 0; }
