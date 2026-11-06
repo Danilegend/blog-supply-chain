@@ -1,4 +1,6 @@
 ---
+import '../styles/global.css';
+
 interface Props {
   title: string;
   description?: string;
@@ -9,8 +11,6 @@ const {
   description = "A blog about automation, DevOps, and AI workflows.",
 } = Astro.props;
 
-// BASE_URL is "/blog-supply-chain/" with a trailing slash.
-// Strip it once so we can build clean absolute paths.
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
@@ -24,6 +24,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     <title>{title}</title>
   </head>
   <body>
-    <slot />
+    <main>
+      <slot />
+    </main>
   </body>
 </html>
