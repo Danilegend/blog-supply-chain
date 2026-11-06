@@ -1,0 +1,18 @@
+# Affiliate link configuration.
+#
+# [default] is used for bare [AFFILIATE_LINK] placeholders (what the writer emits).
+# Named entries are used for [AFFILIATE:slug] placeholders (for hand-edited drafts).
+#
+# Replace the URLs with your real affiliate links before going live.
+
+[default]
+name = "your-default-product"
+url = "https://example.com/?ref=YOUR_AFFILIATE_ID"
+
+[budget-vps]
+name = "Budget VPS Host"
+url = "https://example.com/budget-vps?ref=YOUR_AFFILIATE_ID"
+
+[tailwind-ui]
+name = "Tailwind UI"
+url = "https://tailwindui.com/?ref=YOUR_AFFILIATE_ID"

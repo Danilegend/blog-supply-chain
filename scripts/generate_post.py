@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 2, Bite 3 (revised): Gemini post generator with retry + model fallback.
+Phase 2, Bite 4: Gemini post generator with retry + model fallback + affiliate links.
 """
 
 import argparse
@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+import tomllib
 from datetime import date
 from pathlib import Path
 
@@ -18,9 +19,8 @@ from google.genai import types, errors
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 POSTS_DIR = ROOT / "src" / "content" / "posts"
+AFFILIATES_CONFIG = ROOT / "config" / "affiliates.toml"
 
-# Model fallback chain: try each in order until one succeeds.
-# Primary from env (default gemini-3.5-flash-lite), then stable fallbacks.
 MODEL_CHAIN = [
     os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
     "gemini-3.6-flash",
@@ -28,18 +28,16 @@ MODEL_CHAIN = [
     "gemini-2.0-flash",
 ]
 
+PLACEHOLDER_RE = re.compile(
+    r"\[AFFILIATE_LINK\]"
+    r"|\[AFFILIATE:([a-z0-9\-]+)(?:\|([^\]]+))?\]"
+)
 
-def slugify(title: str) -> str:
-    slug = title.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
-    return slug
 
-
-def call_gemini(client: genai.Client, system_prompt: str, user_input: str) -> str:
-    """
-    Try each model in the chain. The SDK's HttpRetryOptions handles
-    exponential-backoff retries on 503/5xx before we move to the next model.
-    """
+# ---------------------------------------------------------------------------
+# Gemini
+# ---------------------------------------------------------------------------
+def call_gemini(client, system_prompt, user_input):
     last_error = None
     for model in MODEL_CHAIN:
         try:
@@ -50,13 +48,10 @@ def call_gemini(client: genai.Client, system_prompt: str, user_input: str) -> st
             print(f"  ✓ {model} succeeded")
             return response.text
         except errors.ServerError as e:
-            # 503 after all SDK retries exhausted — try next model
             print(f"  ✗ {model} unavailable after retries: {e}")
             last_error = e
-            # small pause before trying next model
             time.sleep(3)
         except errors.APIError as e:
-            # Non-retryable (e.g. 400, 403, 404) — fail fast, don't rotate models
             raise SystemExit(f"Gemini API error on {model}: {e}")
 
     raise SystemExit(
@@ -65,14 +60,14 @@ def call_gemini(client: genai.Client, system_prompt: str, user_input: str) -> st
     )
 
 
-def run_strategist(client: genai.Client, topic: str) -> str:
+def run_strategist(client, topic):
     prompt = (PROMPTS / "strategist.txt").read_text(encoding="utf-8")
     outline = call_gemini(client, prompt, f"Topic: {topic}")
     print(f"✓ Strategist produced outline ({len(outline)} chars)")
     return outline
 
 
-def run_writer(client: genai.Client, outline: str) -> dict:
+def run_writer(client, outline):
     prompt = (PROMPTS / "writer.txt").read_text(encoding="utf-8")
     raw = call_gemini(client, prompt, f"Outline:\n\n{outline}")
 
@@ -96,10 +91,67 @@ def run_writer(client: genai.Client, outline: str) -> dict:
     return data
 
 
-def render_frontmatter(data: dict) -> str:
+# ---------------------------------------------------------------------------
+# Affiliate links
+# ---------------------------------------------------------------------------
+def load_affiliates():
+    if not AFFILIATES_CONFIG.exists():
+        raise SystemExit(f"Missing affiliate config: {AFFILIATES_CONFIG}")
+    with AFFILIATES_CONFIG.open("rb") as f:
+        return tomllib.load(f)
+
+
+def _html_escape(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def affiliate_link_html(entry, anchor=None):
+    name = anchor if anchor else entry["name"]
+    url = entry["url"]
+    return (
+        f'<a href="{url}" rel="sponsored nofollow noopener" '
+        f'target="_blank">{_html_escape(name)}</a>'
+    )
+
+
+def replace_affiliate_links(body):
+    affiliates = load_affiliates()
+    default = affiliates.get("default")
+    if default is None:
+        raise SystemExit(f"{AFFILIATES_CONFIG} is missing a [default] entry.")
+    products = {k: v for k, v in affiliates.items() if k != "default"}
+
+    count = 0
+
+    def _sub(m):
+        nonlocal count
+        count += 1
+        if m.group(0) == "[AFFILIATE_LINK]":
+            return affiliate_link_html(default)
+        slug, anchor = m.group(1), m.group(2)
+        if slug not in products:
+            raise SystemExit(
+                f"Unknown affiliate slug '{slug}'. "
+                f"Add it to {AFFILIATES_CONFIG} or fix the placeholder."
+            )
+        return affiliate_link_html(products[slug], anchor)
+
+    return PLACEHOLDER_RE.sub(_sub, body), count
+
+
+# ---------------------------------------------------------------------------
+# Post writing
+# ---------------------------------------------------------------------------
+def slugify(title):
+    slug = title.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+    return slug
+
+
+def render_frontmatter(data):
     today = date.today().isoformat()
 
-    def q(s: str) -> str:
+    def q(s):
         return s.replace('"', '\\"')
 
     return (
@@ -114,7 +166,7 @@ def render_frontmatter(data: dict) -> str:
     )
 
 
-def write_post(data: dict) -> Path:
+def write_post(data):
     POSTS_DIR.mkdir(parents=True, exist_ok=True)
     slug = slugify(data["title"])
     out_path = POSTS_DIR / f"{slug}.md"
@@ -125,23 +177,24 @@ def write_post(data: dict) -> Path:
             "Change the title or delete the existing file."
         )
 
-    out_path.write_text(render_frontmatter(data) + data["body"], encoding="utf-8")
+    body, count = replace_affiliate_links(data["body"])
+    if count == 0:
+        print("  ⚠ warning: no affiliate placeholder found in body")
+
+    out_path.write_text(render_frontmatter(data) + body, encoding="utf-8")
+    print(f"  ✓ replaced {count} affiliate placeholder(s)")
     return out_path
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a blog post with Gemini.")
-    parser.add_argument("--topic", required=True, help="Topic for the post")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--topic", required=True)
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise SystemExit(
-            "GEMINI_API_KEY is not set.\n"
-            'Run: export GEMINI_API_KEY="your-key-here"'
-        )
+        raise SystemExit("GEMINI_API_KEY is not set.")
 
-    # Configure SDK-level retry with more patience for CI environments
     client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
