@@ -1,105 +1,178 @@
 #!/usr/bin/env python3
 """
-Phase 4, Bite 1: LinkedIn cross-post (DRY RUN only).
+Phase 4, Bite 2: LinkedIn cross-post.
 
-Reads a post's frontmatter (linkedinSummary + title), builds the
-text that would be posted to LinkedIn, and prints it.
+Default: dry run — prints payload + text, no network.
+  python3 scripts/post_to_linkedin.py --slug <slug>
 
-Does NOT call the LinkedIn API in this bite.
+With --post: actually posts via /rest/posts.
+  LINKEDIN_ACCESS_TOKEN, LINKEDIN_AUTHOR_URN, LINKEDIN_VERSION must be set.
+  python3 scripts/post_to_linkedin.py --slug <slug> --post
 
-Usage:
-  python3 scripts/post_to_linkedin.py --slug <post-slug>
-  python3 scripts/post_to_linkedin.py --slug <slug> --url-override <full-url>
-
-Reads POST_URL_BASE from env, default derived from known GitHub Pages URL.
+Reads post frontmatter (title, description, linkedinSummary).
 """
 
 import argparse
+import json
 import os
 import re
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 POSTS_DIR = ROOT / "src" / "content" / "posts"
 
-# Default base matches your current GitHub Pages project URL.
-# Override with POST_URL_BASE when you add a custom domain.
 DEFAULT_BASE = "https://Danilegend.github.io/blog-supply-chain"
+LINKEDIN_API = "https://api.linkedin.com/rest/posts"
 
-# Frontmatter is simple key: "quoted value" — minimal parser, no YAML dep.
 FM_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*):\s*"?(.*?)"?\s*$')
 
-# LinkedIn max post length (text only, no URL preview overhead)
-MAX_LEN = 3000
+# LinkedIn limits
+MAX_COMMENTARY = 3000
+MAX_TITLE = 200
+MAX_DESCRIPTION = 256
 
 
-def parse_frontmatter(text: str):
+# ---------- frontmatter ----------
+def parse_frontmatter(text):
     if not text.startswith("---"):
         raise SystemExit("File does not start with ---")
     end = text.find("\n---", 4)
     if end == -1:
         raise SystemExit("File has no closing ---")
-    fm_raw = text[4:end].strip().splitlines()
     data = {}
-    for line in fm_raw:
+    for line in text[4:end].strip().splitlines():
         m = FM_RE.match(line.strip())
         if not m:
             continue
-        key, val = m.group(1), m.group(2)
-        # unescape simple \" from frontmatter writer
-        val = val.replace('\\"', '"')
-        data[key] = val
+        data[m.group(1)] = m.group(2).replace('\\"', '"')
     return data
 
 
-def load_post(slug: str):
-    # Slug may or may not include .md
+def load_post(slug):
     filename = slug if slug.endswith(".md") else f"{slug}.md"
     path = POSTS_DIR / filename
     if not path.exists():
         raise SystemExit(f"Post not found: {path}")
-    text = path.read_text(encoding="utf-8")
-    fm = parse_frontmatter(text)
-    for key in ("title", "linkedinSummary"):
+    fm = parse_frontmatter(path.read_text(encoding="utf-8"))
+    for key in ("title", "linkedinSummary", "description"):
         if key not in fm or not fm[key].strip():
             raise SystemExit(f"Post frontmatter missing '{key}'")
     return fm
 
 
-def build_post_text(fm, url):
-    summary = fm["linkedinSummary"].strip()
-    # LinkedIn's link preview replaces the URL with a card; still include it in text.
-    body = f"{summary}\n\n{url}"
-    return body
+# ---------- payload ----------
+def build_payload(author_urn, fm, url):
+    commentary = fm["linkedinSummary"].strip()
+    if len(commentary) > MAX_COMMENTARY:
+        raise SystemExit(
+            f"commentary too long: {len(commentary)} > {MAX_COMMENTARY}. Trim linkedinSummary."
+        )
+    return {
+        "author": author_urn,
+        "commentary": commentary,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": [],
+        },
+        "content": {
+            "article": {
+                "source": url,
+                "title": fm["title"][:MAX_TITLE],
+                "description": fm["description"][:MAX_DESCRIPTION],
+            }
+        },
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False,
+    }
 
 
+def dry_run_print(payload, url):
+    print("=" * 60)
+    print("DRY RUN — would POST to:", LINKEDIN_API)
+    print("=" * 60)
+    print(f"URL (in preview card): {url}")
+    print(f"Commentary ({len(payload['commentary'])} chars):")
+    print("-" * 60)
+    print(payload["commentary"])
+    print("-" * 60)
+    print("Article preview:")
+    print(f"  title       = {payload['content']['article']['title']}")
+    print(f"  description = {payload['content']['article']['description']}")
+    print("-" * 60)
+    print("Full JSON payload:")
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print("=" * 60)
+    print("✓ Dry run complete (no network call)")
+
+
+def do_post(token, version, payload):
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "LinkedIn-Version": version,
+        "X-Restli-Protocol-Version": "2.0.0",
+    }
+    req = urllib.request.Request(LINKEDIN_API, data=body, headers=headers, method="POST")
+
+    print(f"POST {LINKEDIN_API} …")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            post_urn = resp.headers.get("x-restli-id") or resp.headers.get("X-Restli-Id")
+            print(f"✓ HTTP {resp.status}")
+            if post_urn:
+                print(f"✓ Post URN: {post_urn}")
+                print(f"  https://www.linkedin.com/feed/update/{post_urn}/")
+            return post_urn
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode("utf-8", "replace")
+        print(f"✗ HTTP {e.code}", file=sys.stderr)
+        print(body_text, file=sys.stderr)
+        raise SystemExit(1)
+    except urllib.error.URLError as e:
+        raise SystemExit(f"Connection error: {e}")
+
+
+# ---------- main ----------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--slug", required=True, help="Post slug (file name without .md)")
-    parser.add_argument("--url-override", help="Full URL to use instead of derived one")
-    parser.add_argument("--print-only", action="store_true", default=True,
-                        help="Print only (this bite is dry-run only)")
+    parser.add_argument("--slug", required=True)
+    parser.add_argument("--url-override")
+    parser.add_argument("--post", action="store_true",
+                        help="Actually POST to LinkedIn (default: dry run)")
     args = parser.parse_args()
 
     base = os.environ.get("POST_URL_BASE", DEFAULT_BASE).rstrip("/")
     url = args.url_override or f"{base}/blog/{args.slug}/"
 
     fm = load_post(args.slug)
-    text = build_post_text(fm, url)
 
-    print("=" * 60)
-    print("DRY RUN — would post the following to LinkedIn:")
-    print("=" * 60)
-    print(text)
-    print("=" * 60)
-    print(f"Length: {len(text)} chars (LinkedIn limit ~{MAX_LEN})")
-    print(f"URL: {url}")
+    token = os.environ.get("LINKEDIN_ACCESS_TOKEN")
+    author_urn = os.environ.get("LINKEDIN_AUTHOR_URN")
+    version = os.environ.get("LINKEDIN_VERSION")
 
-    if len(text) > MAX_LEN:
-        raise SystemExit(f"\n✗ Too long by {len(text) - MAX_LEN} chars — trim the summary.")
+    if not args.post:
+        # Dry run — dummy author so payload builds even without secrets
+        payload = build_payload(author_urn or "urn:li:person:DRY-RUN", fm, url)
+        dry_run_print(payload, url)
+        return
 
-    print("\n✓ Ready (no network call made)")
+    # Real post mode — all three env vars required
+    missing = [n for n, v in (
+        ("LINKEDIN_ACCESS_TOKEN", token),
+        ("LINKEDIN_AUTHOR_URN", author_urn),
+        ("LINKEDIN_VERSION", version),
+    ) if not v]
+    if missing:
+        raise SystemExit(f"Missing env vars: {', '.join(missing)}")
+
+    payload = build_payload(author_urn, fm, url)
+    do_post(token, version, payload)
 
 
 if __name__ == "__main__":
