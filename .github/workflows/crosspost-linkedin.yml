@@ -1,0 +1,101 @@
+name: Cross-post to LinkedIn
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/content/posts/*.md'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Manually cross-post a specific post slug'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  crosspost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Detect newly added post slugs
+        id: changed
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLUGS="${{ inputs.slug }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.event.after }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              ADDED=$(git diff --name-only --diff-filter=A "$AFTER" -- 'src/content/posts/*.md' || true)
+            else
+              ADDED=$(git diff --name-only --diff-filter=A "$BEFORE" "$AFTER" -- 'src/content/posts/*.md' || true)
+            fi
+            SLUGS=""
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              SLUGS="${SLUGS}$(basename "$f" .md)"$'\n'
+            done <<< "$ADDED"
+            SLUGS=$(printf '%s' "$SLUGS" | sed '/^$/d')
+          fi
+          {
+            echo "slugs<<SLUGS_EOF"
+            echo "$SLUGS"
+            echo "SLUGS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Cross-post each slug
+        if: steps.changed.outputs.slugs != ''
+        env:
+          SLUGS: ${{ steps.changed.outputs.slugs }}
+          POST_URL_BASE: https://Danilegend.github.io/blog-supply-chain
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+          LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -uo pipefail
+          FAILED=0
+          POSTED=""
+          FAILED_LIST=""
+          while IFS= read -r slug; do
+            [ -z "$slug" ] && continue
+            URL="${POST_URL_BASE}/blog/${slug}/"
+            LIVE=0
+            for i in $(seq 1 30); do
+              if curl -sf -o /dev/null "$URL"; then LIVE=1; break; fi
+              sleep 6
+            done
+            if [ "$LIVE" = "0" ]; then
+              FAILED=1; FAILED_LIST="${FAILED_LIST}${slug} (URL not live)"$'\n'; continue
+            fi
+            if output=$(python3 scripts/post_to_linkedin.py --slug "$slug" --post 2>&1); then
+              urn=$(echo "$output" | grep -o 'urn:li:share:[0-9]*' | head -1)
+              POSTED="${POSTED}${slug} → ${urn}"$'\n'
+            else
+              echo "$output" >&2
+              FAILED=1; FAILED_LIST="${FAILED_LIST}${slug} (API error)"$'\n'
+            fi
+          done <<< "$SLUGS"
+          if [ "$FAILED" = "0" ]; then
+            MSG=$(printf '✅ <b>Published to LinkedIn</b>\n\n%s' "$POSTED")
+          else
+            MSG=$(printf '⚠️ <b>LinkedIn cross-post had errors</b>\n\nFailed:\n%s\nRun: %s' \
+              "$FAILED_LIST" \
+              "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          fi
+          python3 scripts/notify_telegram.py --message "$MSG" || true
+          exit "$FAILED"
