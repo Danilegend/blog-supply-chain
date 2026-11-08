@@ -26,16 +26,24 @@ jobs:
 
       - name: Read next topic
         id: topic
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           if [ ! -f topics.txt ]; then
             echo "topics.txt not found. Aborting."
             exit 1
           fi
+          
           TOPIC=$(head -n 1 topics.txt)
+          
           if [ -z "$TOPIC" ]; then
-            echo "topics.txt is empty. No topic to generate."
+            echo "topics.txt is empty. Sending alert..."
+            python scripts/notify_telegram.py --message "⚠️ <b>Out of topics!</b>\n\nThe Monday automation ran, but your <code>topics.txt</code> file is empty. Please add more topics to continue."
+            echo "::error::topics.txt is empty. Workflow stopped."
             exit 1
           fi
+          
           echo "topic=$TOPIC" >> "$GITHUB_OUTPUT"
           echo "Selected topic: $TOPIC"
 
