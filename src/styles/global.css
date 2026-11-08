@@ -240,3 +240,11 @@ img { max-width: 100%; height: auto; }
   background: var(--color-code-bg);
 }
 .article-disclosure p { margin: 0; }
+
+/* Ad slot */
+.ad-slot {
+  margin: 2rem 0;
+  padding: 0.5rem 0;
+  min-height: 60px;
+  text-align: center;
+}

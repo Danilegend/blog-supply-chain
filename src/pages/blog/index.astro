@@ -1,6 +1,7 @@
 ---
 import { getCollection, type CollectionEntry } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import AdSlot from '../../components/AdSlot.astro';
 
 type Post = CollectionEntry<'posts'>;
 
@@ -21,6 +22,8 @@ function readingTime(body: string | undefined): string {
     <h1>Blog</h1>
     <p class="muted">{posts.length} post{posts.length === 1 ? "" : "s"}</p>
   </header>
+
+  <AdSlot slot="blog-index-top" label="Advertisement" />
 
   <div class="post-grid">
     {posts.map((post) => (

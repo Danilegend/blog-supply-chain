@@ -15,6 +15,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const currentPath = Astro.url.pathname;
 const isHome = currentPath === `${base}/` || currentPath === base;
 const isBlog = currentPath.startsWith(`${base}/blog`);
+
+const adsenseClient = import.meta.env.PUBLIC_ADSENSE_CLIENT;
+const adsenseEnabled = Boolean(adsenseClient) && adsenseClient !== "ca-pub-xxxxxxxxxxxxxxxx";
 ---
 
 <html lang="en">
@@ -25,6 +28,14 @@ const isBlog = currentPath.startsWith(`${base}/blog`);
     <link rel="icon" href={`${base}/favicon.ico`} />
     <meta name="description" content={description} />
     <title>{title}</title>
+
+    {adsenseEnabled && (
+      <script
+        async
+        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+        crossorigin="anonymous"
+      ></script>
+    )}
   </head>
   <body>
     <header class="site-header">

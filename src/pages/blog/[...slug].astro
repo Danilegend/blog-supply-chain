@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import AdSlot from '../../components/AdSlot.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('posts', ({ data }) => !data.draft);
@@ -41,6 +42,8 @@ const formattedDate = post.data.pubDate.toLocaleDateString("en-US", {
     <div class="prose">
       <Content />
     </div>
+
+    <AdSlot slot="article-bottom" label="Advertisement" />
 
     {post.data.affiliateDisclosure && (
       <aside class="article-disclosure">
