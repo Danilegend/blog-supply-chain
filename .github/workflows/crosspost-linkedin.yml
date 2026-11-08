@@ -60,7 +60,7 @@ jobs:
         if: steps.changed.outputs.slugs != ''
         env:
           SLUGS: ${{ steps.changed.outputs.slugs }}
-          POST_URL_BASE: https://Danilegend.github.io/blog-supply-chain
+          POST_URL_BASE: https://danilegend.github.io/blog-supply-chain
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
           LINKEDIN_VERSION: ${{ secrets.LINKEDIN_VERSION }}

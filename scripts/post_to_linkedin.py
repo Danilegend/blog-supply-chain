@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 POSTS_DIR = ROOT / "src" / "content" / "posts"
 
-DEFAULT_BASE = "https://Danilegend.github.io/blog-supply-chain"
+DEFAULT_BASE = "https://danilegend.github.io/blog-supply-chain"
 LINKEDIN_API = "https://api.linkedin.com/rest/posts"
 
 FM_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*):\s*"?(.*?)"?\s*$')
@@ -65,7 +65,8 @@ def load_post(slug):
 
 # ---------- payload ----------
 def build_payload(author_urn, fm, url):
-    commentary = fm["linkedinSummary"].strip()
+    """Put URL in commentary; let LinkedIn unfurl the OG card."""
+    commentary = f"{fm['linkedinSummary'].strip()}\n\n{url}"
     if len(commentary) > MAX_COMMENTARY:
         raise SystemExit(
             f"commentary too long: {len(commentary)} > {MAX_COMMENTARY}. Trim linkedinSummary."
@@ -79,13 +80,6 @@ def build_payload(author_urn, fm, url):
             "targetEntities": [],
             "thirdPartyDistributionChannels": [],
         },
-        "content": {
-            "article": {
-                "source": url,
-                "title": fm["title"][:MAX_TITLE],
-                "description": fm["description"][:MAX_DESCRIPTION],
-            }
-        },
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False,
     }
@@ -95,14 +89,10 @@ def dry_run_print(payload, url):
     print("=" * 60)
     print("DRY RUN — would POST to:", LINKEDIN_API)
     print("=" * 60)
-    print(f"URL (in preview card): {url}")
+    print(f"URL (unfurled from commentary): {url}")
     print(f"Commentary ({len(payload['commentary'])} chars):")
     print("-" * 60)
     print(payload["commentary"])
-    print("-" * 60)
-    print("Article preview:")
-    print(f"  title       = {payload['content']['article']['title']}")
-    print(f"  description = {payload['content']['article']['description']}")
     print("-" * 60)
     print("Full JSON payload:")
     print(json.dumps(payload, indent=2, ensure_ascii=False))
