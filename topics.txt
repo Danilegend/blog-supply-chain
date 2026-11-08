@@ -1,0 +1,6 @@
+How to optimize Docker images for production
+Setting up a self-hosted CI/CD pipeline with GitHub Actions
+Using AI to automate code reviews in pull requests
+Why static site generators are better for SEO than WordPress
+How to manage secrets in a DevOps workflow
+Comparing cloud hosting options for side projects

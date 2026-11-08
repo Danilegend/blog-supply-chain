@@ -1,0 +1,92 @@
+name: Scheduled Draft Generation
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 09:00 UTC
+  workflow_dispatch:       # Keep the manual button for testing
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Read next topic
+        id: topic
+        run: |
+          if [ ! -f topics.txt ]; then
+            echo "topics.txt not found. Aborting."
+            exit 1
+          fi
+          TOPIC=$(head -n 1 topics.txt)
+          if [ -z "$TOPIC" ]; then
+            echo "topics.txt is empty. No topic to generate."
+            exit 1
+          fi
+          echo "topic=$TOPIC" >> "$GITHUB_OUTPUT"
+          echo "Selected topic: $TOPIC"
+
+      - name: Generate post
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          TOPIC: ${{ steps.topic.outputs.topic }}
+        run: python scripts/generate_post.py --topic "$TOPIC"
+
+      - name: Remove used topic
+        run: |
+          sed -i '1d' topics.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add topics.txt
+          git commit -m "chore: consume topic: ${{ steps.topic.outputs.topic }}" || true
+
+      - name: Commit draft and open PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOPIC: ${{ steps.topic.outputs.topic }}
+        run: |
+          set -euo pipefail
+          BRANCH="draft/${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          git add src/content/posts
+          git commit -m "draft: $TOPIC"
+          git push -u origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Draft: $TOPIC" \
+            --body "Generated automatically by the Monday schedule.
+
+          Reply \`/approve\` in Telegram or merge this PR to publish." \
+            | tail -n 1)
+
+          PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          echo "pr_url=$PR_URL"   >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOPIC: ${{ steps.topic.outputs.topic }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+        run: |
+          printf '📝 <b>New draft ready: PR #%s</b>\n\n<b>Topic:</b> %s\n\n<a href="%s">Review the PR →</a>' \
+            "${{ steps.pr.outputs.pr_number }}" "$TOPIC" "$PR_URL" > /tmp/msg.txt
+          python scripts/notify_telegram.py --message "$(cat /tmp/msg.txt)"
