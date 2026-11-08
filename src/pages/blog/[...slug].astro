@@ -12,15 +12,43 @@ export async function getStaticPaths() {
 
 const { post } = Astro.props;
 const { Content } = await render(post);
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const words = (post.body ?? "").split(/\s+/).filter(Boolean).length;
+const readingTime = Math.max(1, Math.round(words / 200));
+const formattedDate = post.data.pubDate.toLocaleDateString("en-US", {
+  year: "numeric", month: "long", day: "numeric",
+});
 ---
 
 <Layout title={post.data.title} description={post.data.description}>
   <article>
-    <h1>{post.data.title}</h1>
-    <time datetime={post.data.pubDate.toISOString()}>
-      {post.data.pubDate.toLocaleDateString()}
-    </time>
-    <hr />
-    <Content />
+    <a href={`${base}/blog/`} class="back-link">← Back to blog</a>
+
+    <header class="article-header">
+      <h1>{post.data.title}</h1>
+      {post.data.description && (
+        <p class="article-lead">{post.data.description}</p>
+      )}
+      <div class="article-meta">
+        <time datetime={post.data.pubDate.toISOString()}>{formattedDate}</time>
+        <span>·</span>
+        <span>{readingTime} min read</span>
+      </div>
+    </header>
+
+    <div class="prose">
+      <Content />
+    </div>
+
+    {post.data.affiliateDisclosure && (
+      <aside class="article-disclosure">
+        <p>
+          <strong>Disclosure:</strong> some links in this post are affiliate links.
+          If you buy through them, we may earn a commission at no extra cost to you.
+        </p>
+      </aside>
+    )}
   </article>
 </Layout>
