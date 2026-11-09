@@ -35,6 +35,8 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Awin Verification -->
+    <meta name="awin-verification" content="awin" />
     <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
     <link rel="icon" href={`${base}/favicon.ico`} />
     <title>{title}</title>
@@ -79,6 +81,8 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
       <div class="site-footer-inner">
         <p>© {new Date().getFullYear()} Blog Supply Chain. Built with Astro.</p>
         <p class="muted">Some posts contain affiliate links. If you buy through them, we may earn a commission at no extra cost to you.</p>
+        <!-- Awin Verification Text -->
+        <p class="muted" style="font-size: 0.75rem; margin-top: 1rem;">Verified Awin Publisher</p>
       </div>
     </footer>
   </body>
