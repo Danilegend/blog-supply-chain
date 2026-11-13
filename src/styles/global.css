@@ -484,3 +484,178 @@ img { max-width: 100%; height: auto; }
   font-weight: 600;
   text-decoration: none;
 }
+
+/* --- Visual Overhaul: Rich Media Cards --- */
+
+/* Widen the home page layout */
+.main-wide {
+  max-width: 1100px !important;
+}
+
+/* Hero tweaks for desktop */
+.hero {
+  padding: 6rem 1rem 4rem;
+  max-width: 900px;
+}
+.hero-title {
+  font-size: clamp(3rem, 6vw, 4.5rem);
+}
+
+/* Rich Media Post Cards */
+.post-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0; /* Remove padding so image hits the edges */
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.post-card-image-wrapper {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-code-bg);
+}
+
+.post-card-image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.post-card:hover .post-card-image-wrapper img {
+  transform: scale(1.05); /* Subtle zoom on hover */
+}
+
+.post-card-content {
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+
+
+/* Sidebar Featured Post Image */
+.featured-widget-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.featured-widget-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --- Magazine Layout: Hero Post --- */
+.hero-post-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 2rem;
+  background: var(--color-bg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hero-post-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.hero-post-card img {
+  width: 100%;
+  aspect-ratio: 21 / 9; /* Cinematic wide aspect ratio */
+  object-fit: cover;
+}
+.hero-post-content {
+  padding: 2rem;
+}
+.hero-post-title {
+  font-size: 2rem;
+  margin: 0 0 1rem;
+  line-height: 1.2;
+}
+.hero-post-desc {
+  font-size: 1.1rem;
+  color: var(--color-muted);
+  margin-bottom: 1.5rem;
+}
+
+/* --- Magazine Layout: Vertical Timeline Sidebar --- */
+.timeline-widget {
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+.timeline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+/* The vertical line */
+.timeline-list::before {
+  content: '';
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: var(--color-border);
+}
+.timeline-item {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.timeline-item:last-child {
+  margin-bottom: 0;
+}
+/* The dot on the timeline */
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-bg); /* Creates a gap between line and dot */
+}
+.timeline-link {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-fg);
+  text-decoration: none;
+  line-height: 1.4;
+  margin-bottom: 0.25rem;
+}
+.timeline-link:hover {
+  color: var(--color-accent);
+}
+.timeline-date {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* Fix grid card alignment */
+.post-grid {
+  gap: 1.5rem;
+}
+.post-card {
+  height: 100%;
+}
+.post-card-content {
+  justify-content: flex-start;
+  flex: 1;
+}

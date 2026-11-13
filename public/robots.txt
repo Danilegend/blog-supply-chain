@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://danilegend.github.io/blog-supply-chain/sitemap-index.xml

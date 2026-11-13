@@ -1,4 +1,5 @@
 ---
+import ImageCarousel from '../../components/ImageCarousel.astro';
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import AdSlot from '../../components/AdSlot.astro';
@@ -43,6 +44,22 @@ const formattedDate = post.data.pubDate.toLocaleDateString("en-US", {
         <span>{readingTime} min read</span>
       </div>
     </header>
+    
+    <article>
+  <a href={`${base}/blog/`} class="back-link">← Back to blog</a>
+
+  <header class="article-header">
+    <!-- ... your existing header code ... -->
+  </header>
+
+  {/* Add the carousel here */}
+  <ImageCarousel imageUrls={post.data.images || []} />
+
+  <div class="prose">
+    <Content />
+  </div>
+  {/* ... the rest of your page ... */}
+</article>
 
     <div class="prose">
       <Content />

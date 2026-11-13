@@ -8,11 +8,19 @@ type Post = CollectionEntry<'posts'>;
 const posts = (await getCollection('posts', ({ data }) => !data.draft))
   .sort((a: Post, b: Post) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
 
-// Grab the newest post for the sidebar
-const featuredPost = posts[0];
-const otherPosts = posts.slice(1); 
+// 1. The absolute latest post goes to the Hero
+const heroPost = posts[0];
+
+// 2. The next 3 posts go into the grid under the hero
+const gridPosts = posts.slice(1, 4);
+
+// 3. The rest go into the sidebar timeline
+const timelinePosts = posts.slice(4);
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// Fallback image in case a post was generated before we added Pexels
+const fallbackImage = "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800";
 
 function readingTime(body: string | undefined): string {
   const words = (body ?? "").split(/\s+/).filter(Boolean).length;
@@ -25,40 +33,71 @@ function readingTime(body: string | undefined): string {
     
     <!-- Main Column -->
     <div class="blog-main">
+      
       <header class="page-header">
-        <h1>All Posts</h1>
+        <h1>Latest Insights</h1>
         <p class="muted">Deep dives into AI automation, GitHub Actions, and modern DevOps.</p>
       </header>
 
-      <AdSlot slot="blog-index-top" label="Advertisement" />
-
-      <div class="post-grid">
-        {otherPosts.map((post) => (
-          <a href={`${base}/blog/${post.id}/`} class="post-card">
-            <h2 class="post-card-title">{post.data.title}</h2>
-            <p class="post-card-desc">{post.data.description}</p>
+      <!-- 1. The Hero Post -->
+      {heroPost && (
+        <a href={`${base}/blog/${heroPost.id}/`} class="hero-post-card">
+          <img src={heroPost.data.images?.[0] || fallbackImage} alt={heroPost.data.title} />
+          <div class="hero-post-content">
+            <h2 class="hero-post-title">{heroPost.data.title}</h2>
+            <p class="hero-post-desc">{heroPost.data.description}</p>
             <div class="post-card-meta">
-              <time datetime={post.data.pubDate.toISOString()}>
-                {post.data.pubDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+              <time datetime={heroPost.data.pubDate.toISOString()}>
+                {heroPost.data.pubDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
               </time>
               <span>·</span>
-              <span>{readingTime(post.body)}</span>
+              <span>{readingTime(heroPost.body)}</span>
+            </div>
+          </div>
+        </a>
+      )}
+
+      <!-- 2. The 3 Grid Cards -->
+      <div class="post-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+        {gridPosts.map((post) => (
+          <a href={`${base}/blog/${post.id}/`} class="post-card">
+            <div class="post-card-image-wrapper">
+              <img src={post.data.images?.[0] || fallbackImage} alt={post.data.title} loading="lazy" />
+            </div>
+            <div class="post-card-content">
+              <h3 class="post-card-title" style="font-size: 1.1rem;">{post.data.title}</h3>
+              <div class="post-card-meta" style="margin-top:auto;">
+                <time datetime={post.data.pubDate.toISOString()}>
+                  {post.data.pubDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </time>
+              </div>
             </div>
           </a>
         ))}
       </div>
+
+      <AdSlot slot="blog-index-bottom" label="Advertisement" />
     </div>
 
     <!-- Sidebar -->
     <aside class="blog-sidebar">
-      {featuredPost && (
-        <div class="sidebar-widget featured-widget">
-          <h3>⭐ Featured Post</h3>
-          <h2>{featuredPost.data.title}</h2>
-          <p>{featuredPost.data.description}</p>
-          <a href={`${base}/blog/${featuredPost.id}/`}>Read article →</a>
-        </div>
-      )}
+      
+      <!-- Vertical Timeline Widget -->
+      <div class="sidebar-widget timeline-widget">
+        <h3>More Articles</h3>
+        <ul class="timeline-list">
+          {timelinePosts.map((post) => (
+            <li class="timeline-item">
+              <a href={`${base}/blog/${post.id}/`} class="timeline-link">
+                {post.data.title}
+              </a>
+              <time class="timeline-date" datetime={post.data.pubDate.toISOString()}>
+                {post.data.pubDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </time>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div class="sidebar-widget">
         <h3>About this Blog</h3>
@@ -67,15 +106,6 @@ function readingTime(body: string | undefined): string {
         </p>
       </div>
 
-      <div class="sidebar-widget">
-        <h3>Topics</h3>
-        <ul class="topics-list">
-          <li><a href="#">DevOps <span>12</span></a></li>
-          <li><a href="#">AI Workflows <span>8</span></a></li>
-          <li><a href="#">Astro <span>5</span></a></li>
-          <li><a href="#">GitHub Actions <span>9</span></a></li>
-        </ul>
-      </div>
     </aside>
 
   </div>

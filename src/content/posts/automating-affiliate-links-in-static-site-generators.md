@@ -5,6 +5,10 @@ pubDate: 2026-11-05
 linkedinSummary: "Managing affiliate links across static site generators like Hugo, Astro, or Next.js usually means dealing with broken URLs, manual updates, and scattered Markdown files. This deep dive explores how to build a scalable, CI/CD-driven pipeline using a centralized JSON schema, build-time validation, and edge-level Cloudflare redirects. Stop letting manual link debt slow down your content pipeline and read the full guide to automate your static site monetization."
 affiliateDisclosure: true
 draft: false
+images:
+  - "/images/docker-optimization-1.png"
+  - "/images/docker-optimization-2.png"
+  - "/images/docker-optimization-3.png"
 ---
 
 ## Introduction: The Static Site Monetization Bottleneck

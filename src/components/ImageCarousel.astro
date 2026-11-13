@@ -1,0 +1,46 @@
+---
+// src/components/ImageCarousel.astro
+import { Swiper, SwiperWrapper, SwiperSlide } from "astro-swiper";
+
+interface Props {
+  imageUrls: string[];
+}
+
+const { imageUrls = [] } = Astro.props;
+---
+
+{
+  imageUrls.length > 0 && (
+    <Swiper
+      options={{
+        loop: true,
+        autoplay: {
+          delay: 3000,
+          disableOnInteraction: false,
+        },
+      }}
+    >
+      <SwiperWrapper>
+        {imageUrls.map((url) => (
+          <SwiperSlide>
+            <img src={url} alt="Blog post image" />
+          </SwiperSlide>
+        ))}
+      </SwiperWrapper>
+    </Swiper>
+  )
+}
+
+<style>
+  .swiper {
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+  }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+</style>
