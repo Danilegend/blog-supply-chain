@@ -1,5 +1,28 @@
+<<<<<<< HEAD
 Setting up a self-hosted CI/CD pipeline with GitHub Actions
 Using AI to automate code reviews in pull requests
 Why static site generators are better for SEO than WordPress
 How to manage secrets in a DevOps workflow
 Comparing cloud hosting options for side projects
+=======
+How to deploy a Python FastAPI application to a cloud VPS
+Setting up self-hosted GitHub Actions runners on a budget VPS
+Using AI to automatically generate release notes for GitHub Actions
+How to monitor Docker containers with Prometheus and Grafana
+Cost optimization strategies for running AI models in the cloud
+Automating database backups for PostgreSQL on an Ubuntu server
+How to use Terraform to provision cloud infrastructure
+Building an AI-driven code review pipeline with GitHub Actions
+Comparing cloud hosting options for deploying Node.js applications
+Setting up a secure VPN using WireGuard on a cheap VPS
+How to automate SSL certificate renewal with Certbot and Nginx
+Managing environment variables securely in GitHub Actions
+Building a custom AI chatbot using an API and Python
+Optimizing CI/CD pipelines for faster deployment times
+How to containerize a React application for production
+Automating server maintenance with Ansible playbooks
+How to set up a zero-downtime deployment pipeline
+Integrating AI code assistants into your local development workflow
+Scaling a web application using Docker Swarm and load balancers
+How to monitor server uptime and get alerts via Telegram
+>>>>>>> 827e198 (content: add 20 high-intent topics)
