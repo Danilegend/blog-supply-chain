@@ -1,5 +1,4 @@
 ---
-import ImageCarousel from '../../components/ImageCarousel.astro';
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import AdSlot from '../../components/AdSlot.astro';
@@ -13,7 +12,7 @@ export async function getStaticPaths() {
 }
 
 const { post } = Astro.props;
-const { Content } = await render(post);
+const { Content, headings } = await render(post);
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -22,6 +21,9 @@ const readingTime = Math.max(1, Math.round(words / 200));
 const formattedDate = post.data.pubDate.toLocaleDateString("en-US", {
   year: "numeric", month: "long", day: "numeric",
 });
+
+const shareText = encodeURIComponent(`Check out "${post.data.title}" on Blog Supply Chain!`);
+const postUrl = encodeURIComponent(`https://danilegend.github.io/blog-supply-chain/blog/${post.id}/`);
 ---
 
 <Layout
@@ -29,51 +31,67 @@ const formattedDate = post.data.pubDate.toLocaleDateString("en-US", {
   description={post.data.description}
   ogType="article"
   articlePublishedTime={post.data.pubDate.toISOString()}
+  wide={true}
 >
-  <article>
-    <a href={`${base}/blog/`} class="back-link">← Back to blog</a>
-
-    <header class="article-header">
-      <h1>{post.data.title}</h1>
-      {post.data.description && (
-        <p class="article-lead">{post.data.description}</p>
-      )}
-      <div class="article-meta">
-        <time datetime={post.data.pubDate.toISOString()}>{formattedDate}</time>
-        <span>·</span>
-        <span>{readingTime} min read</span>
-      </div>
-    </header>
+  <div class="article-layout">
     
+    <!-- Left Sidebar: Table of Contents -->
+    <aside class="toc-container">
+      {headings.length > 0 && (
+        <>
+          <div class="toc-title">On this page</div>
+          <ul class="toc-list">
+            {headings.filter(h => h.depth === 2 || h.depth === 3).map(heading => (
+              <li>
+                <a href={`#${heading.slug}`} class={`depth-${heading.depth}`}>
+                  {heading.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </aside>
+
+    <!-- Main Content -->
     <article>
-  <a href={`${base}/blog/`} class="back-link">← Back to blog</a>
+      <a href={`${base}/blog/`} class="back-link">← Back to blog</a>
 
-  <header class="article-header">
-    <!-- ... your existing header code ... -->
-  </header>
+      <header class="article-header">
+        <h1>{post.data.title}</h1>
+        {post.data.description && (
+          <p class="article-lead">{post.data.description}</p>
+        )}
+        <div class="article-meta">
+          <time datetime={post.data.pubDate.toISOString()}>{formattedDate}</time>
+          <span>·</span>
+          <span>{readingTime} min read</span>
+        </div>
+      </header>
 
-  {/* Add the carousel here */}
-  <ImageCarousel imageUrls={post.data.images || []} />
+      <div class="prose">
+        <Content />
+      </div>
 
-  <div class="prose">
-    <Content />
+      <!-- Share Buttons -->
+      <div class="share-container">
+        <span class="share-label">Share this post:</span>
+        <a href={`https://twitter.com/intent/tweet?text=${shareText}&url=${postUrl}`} target="_blank" rel="noopener" class="share-btn">X (Twitter)</a>
+        <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${postUrl}`} target="_blank" rel="noopener" class="share-btn">LinkedIn</a>
+        <a href={`https://api.whatsapp.com/send?text=${shareText}%20${postUrl}`} target="_blank" rel="noopener" class="share-btn">WhatsApp</a>
+      </div>
+
+      <AdSlot slot="article-bottom" label="Advertisement" />
+
+      {post.data.affiliateDisclosure && (
+        <aside class="article-disclosure">
+          <p>
+            <strong>Disclosure:</strong> some links in this post are affiliate links.
+            If you buy through them, we may earn a commission at no extra cost to you.
+          </p>
+        </aside>
+      )}
+    </article>
+
   </div>
-  {/* ... the rest of your page ... */}
-</article>
-
-    <div class="prose">
-      <Content />
-    </div>
-
-    <AdSlot slot="article-bottom" label="Advertisement" />
-
-    {post.data.affiliateDisclosure && (
-      <aside class="article-disclosure">
-        <p>
-          <strong>Disclosure:</strong> some links in this post are affiliate links.
-          If you buy through them, we may earn a commission at no extra cost to you.
-        </p>
-      </aside>
-    )}
-  </article>
 </Layout>

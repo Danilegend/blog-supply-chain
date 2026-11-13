@@ -7,7 +7,7 @@ interface Props {
   ogImage?: string;
   ogType?: "website" | "article";
   articlePublishedTime?: string;
-  wide?: boolean; // NEW: allows the blog index to expand for the sidebar
+  wide?: boolean;
 }
 
 const {
@@ -35,8 +35,6 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Awin Verification -->
-    <meta name="awin-verification" content="awin" />
     <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
     <link rel="icon" href={`${base}/favicon.ico`} />
     <title>{title}</title>
@@ -56,11 +54,19 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageURL} />
 
+    <!-- Theme Script (Prevents flash of white on load) -->
+    <script is:inline>
+      const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    </script>
+
     {adsenseEnabled && (
       <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`} crossorigin="anonymous"></script>
     )}
   </head>
   <body>
+    <div id="progress-bar"></div>
+
     <header class="site-header">
       <div class="site-header-inner">
         <a href={`${base}/`} class="site-title">
@@ -69,6 +75,7 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
         <nav>
           <a href={`${base}/`} class:list={[{ active: isHome }]}>Home</a>
           <a href={`${base}/blog/`} class:list={[{ active: isBlog }]}>Blog</a>
+          <button id="theme-toggle" aria-label="Toggle dark mode" style="background:none; border:none; cursor:pointer; font-size:1.2rem; color:var(--color-fg); padding:0; margin-left:1rem;">🌓</button>
         </nav>
       </div>
     </header>
@@ -81,9 +88,28 @@ const ogImageURL = ogImage.startsWith("http") ? ogImage : Astro.site ? new URL(`
       <div class="site-footer-inner">
         <p>© {new Date().getFullYear()} Blog Supply Chain. Built with Astro.</p>
         <p class="muted">Some posts contain affiliate links. If you buy through them, we may earn a commission at no extra cost to you.</p>
-        <!-- Awin Verification Text -->
-        <p class="muted" style="font-size: 0.75rem; margin-top: 1rem;">Verified Awin Publisher</p>
       </div>
     </footer>
+
+    <!-- Theme Toggle & Progress Bar Script -->
+    <script>
+      // Theme Toggle
+      const toggleBtn = document.getElementById('theme-toggle');
+      toggleBtn?.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+      });
+
+      // Reading Progress Bar
+      const progressBar = document.getElementById('progress-bar');
+      window.addEventListener('scroll', () => {
+        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const progress = (scrollTop / scrollHeight) * 100;
+        if (progressBar) progressBar.style.width = progress + '%';
+      });
+    </script>
   </body>
 </html>
