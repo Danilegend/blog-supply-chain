@@ -1,10 +1,4 @@
-<<<<<<< HEAD
-Setting up a self-hosted CI/CD pipeline with GitHub Actions
-Using AI to automate code reviews in pull requests
-Why static site generators are better for SEO than WordPress
-How to manage secrets in a DevOps workflow
-Comparing cloud hosting options for side projects
-=======
+
 How to deploy a Python FastAPI application to a cloud VPS
 Setting up self-hosted GitHub Actions runners on a budget VPS
 Using AI to automatically generate release notes for GitHub Actions
