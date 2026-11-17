@@ -35,7 +35,7 @@ jobs:
             exit 1
           fi
           
-          TOPIC=$(head -n 1 topics.txt)
+          TOPIC=$(head -n 1 topics.txt | tr -d '\r' | xargs)
           
           if [ -z "$TOPIC" ]; then
             echo "topics.txt is empty. Sending alert..."
