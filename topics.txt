@@ -1,4 +1,3 @@
-How to deploy a Python FastAPI application to a cloud VPS
 Setting up self-hosted GitHub Actions runners on a budget VPS
 Using AI to automatically generate release notes for GitHub Actions
 How to monitor Docker containers with Prometheus and Grafana
